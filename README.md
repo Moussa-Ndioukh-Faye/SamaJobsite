@@ -223,3 +223,4 @@ samajobsite/
 **CORS error** → Vérifiez que `FRONTEND_URL` dans le `.env` backend correspond à l'URL du frontend.
 
 **401 Unauthorized** → Le token JWT a expiré. Reconnectez-vous.
+"# SamaJob" 
