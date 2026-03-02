@@ -29,7 +29,7 @@ export const getErrorMessage = (error) => {
     if (error.code === 'ECONNABORTED') {
       return 'La requête a pris trop de temps. Vérifiez votre connexion internet.';
     }
-    return 'Impossible de joindre le serveur. Vérifiez que le backend est démarré sur http://localhost:5000';
+    return 'Impossible de joindre le serveur. Vérifiez votre connexion internet.';
   }
 
   const { status, data } = error.response;
