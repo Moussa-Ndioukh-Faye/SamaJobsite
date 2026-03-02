@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: samajob-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: postgresql://postgres.xoxbsuxnmogjpjxoxatp:0RznTzqu0s618FYf@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+      - key: DIRECT_URL
+        value: postgresql://postgres:0RznTzqu0s618FYf@db.xoxbsuxnmogjpjxoxatp.supabase.co:5432/postgres
+      - key: JWT_SECRET
+        value: samajob_secret_key_super_securisee_2024
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: FRONTEND_URL
+        value: https://samajob-frontend.vercel.app
