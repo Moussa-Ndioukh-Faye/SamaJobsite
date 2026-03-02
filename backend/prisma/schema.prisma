@@ -1,0 +1,133 @@
+// Prisma Schema – SamaJob
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CLIENT
+  PRESTATAIRE
+  ADMIN
+}
+
+enum StatutCompte {
+  EN_ATTENTE
+  VALIDE
+  REJETE
+  SUSPENDU
+}
+
+enum StatutMission {
+  OUVERTE
+  ATTRIBUEE
+  TERMINEE
+}
+
+enum StatutCandidature {
+  EN_ATTENTE
+  ACCEPTEE
+  REFUSEE
+}
+
+// ─── Modèles ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           Int          @id @default(autoincrement())
+  nom          String
+  email        String       @unique
+  motDePasse   String
+  role         Role         @default(CLIENT)
+  statut       StatutCompte @default(EN_ATTENTE)
+  telephone    String?
+  domaine      String?
+  competences  String[]     @default([])
+  bio          String?
+  photo        String?
+  dateCreation DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  missionsClient     Mission[]     @relation("ClientMissions")
+  candidatures       Candidature[] @relation("PrestataireCandidatures")
+  evaluationsDonnees Evaluation[]  @relation("AuteurEvaluations")
+  messagesEnvoyes    Message[]     @relation("ExpediteurMessages")
+
+  @@map("users")
+}
+
+model Mission {
+  id          Int           @id @default(autoincrement())
+  titre       String
+  description String
+  domaine     String
+  budget      Float
+  lieu        String
+  dateMission DateTime
+  statut      StatutMission @default(OUVERTE)
+  clientId    Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  client       User          @relation("ClientMissions", fields: [clientId], references: [id], onDelete: Cascade)
+  candidatures Candidature[]
+  evaluations  Evaluation[]
+  messages     Message[]
+
+  @@map("missions")
+}
+
+model Candidature {
+  id              Int               @id @default(autoincrement())
+  missionId       Int
+  prestataireId   Int
+  message         String
+  propositionPrix Float
+  statut          StatutCandidature @default(EN_ATTENTE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relations
+  mission     Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  prestataire User    @relation("PrestataireCandidatures", fields: [prestataireId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, prestataireId])
+  @@map("candidatures")
+}
+
+model Evaluation {
+  id          Int      @id @default(autoincrement())
+  missionId   Int
+  note        Int      // 1 à 5
+  commentaire String?
+  auteurId    Int
+  createdAt   DateTime @default(now())
+
+  // Relations
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  auteur  User    @relation("AuteurEvaluations", fields: [auteurId], references: [id], onDelete: Cascade)
+
+  @@map("evaluations")
+}
+
+model Message {
+  id           Int      @id @default(autoincrement())
+  missionId    Int
+  expediteurId Int
+  contenu      String
+  date         DateTime @default(now())
+
+  // Relations
+  mission    Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  expediteur User    @relation("ExpediteurMessages", fields: [expediteurId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
