@@ -108,6 +108,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ SamaJob API démarrée sur http://localhost:${PORT}`);
-});
+// Démarrage local uniquement (pas serverless)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`✅ SamaJob API démarrée sur http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
