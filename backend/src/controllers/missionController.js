@@ -4,13 +4,20 @@ const { body } = require('express-validator');
 // ─── Validations ──────────────────────────────────────────────────────────────
 
 const missionValidation = [
-  body('titre').trim().notEmpty().withMessage('Le titre est requis'),
-  body('description').trim().notEmpty().withMessage('La description est requise'),
+  body('titre').trim().notEmpty().isLength({ max: 200 }).withMessage('Titre requis (200 caractères max)'),
+  body('description').trim().notEmpty().isLength({ max: 5000 }).withMessage('Description requise (5000 caractères max)'),
   body('domaine').trim().notEmpty().withMessage('Le domaine est requis'),
-  body('budget').isFloat({ min: 0 }).withMessage('Budget invalide'),
-  body('lieu').trim().notEmpty().withMessage('Le lieu est requis'),
+  body('budget').isFloat({ min: 0, max: 100_000_000 }).withMessage('Budget invalide'),
+  body('lieu').trim().notEmpty().isLength({ max: 200 }).withMessage('Lieu requis (200 caractères max)'),
   body('dateMission').isISO8601().withMessage('Date invalide'),
 ];
+
+// ─── Utilitaire ───────────────────────────────────────────────────────────────
+
+const parseId = (value) => {
+  const id = parseInt(value, 10);
+  return Number.isNaN(id) || id < 1 ? null : id;
+};
 
 // ─── Contrôleurs ──────────────────────────────────────────────────────────────
 
@@ -20,15 +27,19 @@ const missionValidation = [
  */
 const getMissions = async (req, res, next) => {
   try {
-    const { domaine, lieu, budgetMin, budgetMax, search } = req.query;
+    const { domaine, lieu, budgetMin, budgetMax, statut } = req.query;
+    // Limite la longueur de la recherche pour éviter les requêtes abusives
+    const search = typeof req.query.search === 'string'
+      ? req.query.search.slice(0, 100)
+      : undefined;
 
     const where = {
-      statut: 'OUVERTE',
+      statut: statut || 'OUVERTE',
       ...(domaine && { domaine }),
-      ...(lieu    && { lieu: { contains: lieu, mode: 'insensitive' } }),
+      ...(lieu    && { lieu: { contains: lieu.slice(0, 100), mode: 'insensitive' } }),
       ...(search  && {
         OR: [
-          { titre: { contains: search, mode: 'insensitive' } },
+          { titre:       { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } },
         ],
       }),
@@ -58,13 +69,18 @@ const getMissions = async (req, res, next) => {
 /**
  * GET /api/missions/:id
  * Détail d'une mission
+ * NB : le numéro de téléphone du client n'est PAS exposé ici (données publiques)
  */
 const getMissionById = async (req, res, next) => {
   try {
+    const missionId = parseId(req.params.id);
+    if (!missionId) return res.status(400).json({ message: 'ID de mission invalide' });
+
     const mission = await prisma.mission.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id: missionId },
       include: {
-        client: { select: { id: true, nom: true, photo: true, telephone: true } },
+        // telephone exclu volontairement : donnée privée non nécessaire publiquement
+        client: { select: { id: true, nom: true, photo: true } },
         candidatures: {
           include: {
             prestataire: { select: { id: true, nom: true, photo: true, domaine: true, competences: true } },
@@ -77,9 +93,7 @@ const getMissionById = async (req, res, next) => {
       },
     });
 
-    if (!mission) {
-      return res.status(404).json({ message: 'Mission introuvable' });
-    }
+    if (!mission) return res.status(404).json({ message: 'Mission introuvable' });
 
     res.json({ mission });
   } catch (error) {
@@ -118,11 +132,13 @@ const createMission = async (req, res, next) => {
 
 /**
  * PUT /api/missions/:id
- * Modifier une mission (propriétaire uniquement)
+ * Modifier une mission (propriétaire ou ADMIN)
+ * Note : seul un ADMIN peut modifier le statut directement
  */
 const updateMission = async (req, res, next) => {
   try {
-    const missionId = parseInt(req.params.id);
+    const missionId = parseId(req.params.id);
+    if (!missionId) return res.status(400).json({ message: 'ID de mission invalide' });
 
     const existing = await prisma.mission.findUnique({ where: { id: missionId } });
     if (!existing) return res.status(404).json({ message: 'Mission introuvable' });
@@ -133,16 +149,21 @@ const updateMission = async (req, res, next) => {
 
     const { titre, description, domaine, budget, lieu, dateMission, statut } = req.body;
 
+    // Seul un ADMIN peut modifier le statut directement
+    const statutAllowed = req.user.role === 'ADMIN' && statut
+      ? { statut }
+      : {};
+
     const mission = await prisma.mission.update({
       where: { id: missionId },
       data: {
-        ...(titre       && { titre }),
-        ...(description && { description }),
+        ...(titre       && { titre:       String(titre).slice(0, 200) }),
+        ...(description && { description: String(description).slice(0, 5000) }),
         ...(domaine     && { domaine }),
         ...(budget      && { budget: parseFloat(budget) }),
-        ...(lieu        && { lieu }),
+        ...(lieu        && { lieu:         String(lieu).slice(0, 200) }),
         ...(dateMission && { dateMission: new Date(dateMission) }),
-        ...(statut      && { statut }),
+        ...statutAllowed,
       },
     });
 
@@ -154,11 +175,12 @@ const updateMission = async (req, res, next) => {
 
 /**
  * DELETE /api/missions/:id
- * Supprimer une mission
+ * Supprimer une mission (propriétaire ou ADMIN)
  */
 const deleteMission = async (req, res, next) => {
   try {
-    const missionId = parseInt(req.params.id);
+    const missionId = parseId(req.params.id);
+    if (!missionId) return res.status(400).json({ message: 'ID de mission invalide' });
 
     const existing = await prisma.mission.findUnique({ where: { id: missionId } });
     if (!existing) return res.status(404).json({ message: 'Mission introuvable' });

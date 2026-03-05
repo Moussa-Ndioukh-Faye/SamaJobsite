@@ -1,0 +1,60 @@
+services:
+
+  # ── Base de données PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: samajob_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       samajob
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d samajob"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Backend Node.js / Express ───────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: samajob_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV:      production
+      PORT:          5000
+      DATABASE_URL:  postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/samajob?schema=public
+      DIRECT_URL:    postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/samajob?schema=public
+      JWT_SECRET:    ${JWT_SECRET:?Définissez JWT_SECRET dans .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL:  ${FRONTEND_URL:-http://localhost}
+    expose:
+      - "5000"
+    # Le backend n'est PAS exposé directement — nginx fait le proxy
+
+  # ── Frontend React (servi par Nginx) ────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # En Docker, toutes les requêtes /api passent par le proxy Nginx → backend
+        VITE_API_URL: /api
+    container_name: samajob_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${APP_PORT:-80}:80"
+
+volumes:
+  postgres_data:
+    name: samajob_postgres_data

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import MissionCard from '../components/MissionCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -15,15 +15,16 @@ const Missions = () => {
   const [loading,  setLoading]  = useState(true);
   const [filters,  setFilters]  = useState({ domaine: '', search: '', budgetMin: '', budgetMax: '' });
   const { isAuthenticated, isClient } = useAuth();
+  const [searchParams] = useSearchParams();
 
-  const fetchMissions = async () => {
+  const fetchMissions = async (f = filters) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.domaine   && filters.domaine !== 'Tous') params.set('domaine',   filters.domaine);
-      if (filters.search)    params.set('search',    filters.search);
-      if (filters.budgetMin) params.set('budgetMin', filters.budgetMin);
-      if (filters.budgetMax) params.set('budgetMax', filters.budgetMax);
+      if (f.domaine   && f.domaine !== 'Tous') params.set('domaine',   f.domaine);
+      if (f.search)    params.set('search',    f.search);
+      if (f.budgetMin) params.set('budgetMin', f.budgetMin);
+      if (f.budgetMax) params.set('budgetMax', f.budgetMax);
 
       const { data } = await api.get(`/missions?${params}`);
       setMissions(data.missions);
@@ -34,22 +35,47 @@ const Missions = () => {
     }
   };
 
-  useEffect(() => { fetchMissions(); }, []);
+  useEffect(() => {
+    const domaineParam = searchParams.get('domaine');
+    const initialFilters = { domaine: domaineParam || '', search: '', budgetMin: '', budgetMax: '' };
+    if (domaineParam) setFilters(initialFilters);
+    fetchMissions(initialFilters);
+  }, []);
 
   const handleSearch = e => {
     e.preventDefault();
     fetchMissions();
   };
 
+  const handleDomaineChip = domaine => {
+    const newFilters = { ...filters, domaine: domaine === 'Tous' ? '' : domaine };
+    setFilters(newFilters);
+    fetchMissions(newFilters);
+  };
+
+  const resetFilters = () => {
+    const empty = { domaine: '', search: '', budgetMin: '', budgetMax: '' };
+    setFilters(empty);
+    fetchMissions(empty);
+  };
+
+  const activeFilters = filters.domaine || filters.search || filters.budgetMin || filters.budgetMax;
+
   return (
     <div className="fade-in">
+
       {/* Header */}
       <div className="bg-gradient-to-r from-primary-900 to-primary-700 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-extrabold">Missions disponibles</h1>
-              <p className="text-white/70 mt-1">Trouvez la mission idéale parmi {missions.length} offres</p>
+              <p className="text-white/70 mt-1">
+                {loading
+                  ? 'Chargement…'
+                  : `${missions.length} offre${missions.length > 1 ? 's' : ''} disponible${missions.length > 1 ? 's' : ''}`
+                }
+              </p>
             </div>
             {isAuthenticated && isClient && (
               <Link to="/missions/creer" className="btn-secondary hidden md:inline-flex gap-2">
@@ -64,71 +90,95 @@ const Missions = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filtres */}
+
+        {/* Chips domaines */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+          {DOMAINES.map(d => {
+            const isActive = d === 'Tous' ? !filters.domaine : filters.domaine === d;
+            return (
+              <button
+                key={d}
+                onClick={() => handleDomaineChip(d)}
+                className={isActive ? 'chip-active' : 'chip-inactive'}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Filtres recherche + budget */}
         <div className="bg-white rounded-2xl shadow-card p-5 mb-8">
-          <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
-              <label className="label">Rechercher</label>
+          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               <input
-                type="text" placeholder="Ex: développement site web..."
+                type="text"
+                placeholder="Rechercher une mission..."
                 value={filters.search}
                 onChange={e => setFilters(p => ({ ...p, search: e.target.value }))}
-                className="input"
+                className="input pl-10"
               />
             </div>
-            <div>
-              <label className="label">Domaine</label>
-              <select
-                value={filters.domaine}
-                onChange={e => setFilters(p => ({ ...p, domaine: e.target.value }))}
-                className="input"
-              >
-                {DOMAINES.map(d => <option key={d} value={d === 'Tous' ? '' : d}>{d}</option>)}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button type="submit" className="btn-primary w-full py-2.5">
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="number" placeholder="Budget min"
+                value={filters.budgetMin}
+                onChange={e => setFilters(p => ({ ...p, budgetMin: e.target.value }))}
+                className="input w-32 text-sm"
+                min="0"
+              />
+              <input
+                type="number" placeholder="Budget max"
+                value={filters.budgetMax}
+                onChange={e => setFilters(p => ({ ...p, budgetMax: e.target.value }))}
+                className="input w-32 text-sm"
+                min="0"
+              />
+              <button type="submit" className="btn-primary whitespace-nowrap">
                 Rechercher
               </button>
             </div>
           </form>
-
-          {/* Budget */}
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div>
-              <label className="label text-xs">Budget min (FCFA)</label>
-              <input
-                type="number" placeholder="0" min="0"
-                value={filters.budgetMin}
-                onChange={e => setFilters(p => ({ ...p, budgetMin: e.target.value }))}
-                className="input text-sm"
-              />
-            </div>
-            <div>
-              <label className="label text-xs">Budget max (FCFA)</label>
-              <input
-                type="number" placeholder="1 000 000" min="0"
-                value={filters.budgetMax}
-                onChange={e => setFilters(p => ({ ...p, budgetMax: e.target.value }))}
-                className="input text-sm"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Résultats */}
         {loading ? (
           <LoadingSpinner />
         ) : missions.length === 0 ? (
-          <div className="text-center py-16 text-gray-500">
-            <div className="text-5xl mb-4">🔍</div>
-            <p className="text-lg font-medium">Aucune mission trouvée</p>
-            <p className="text-sm mt-1">Modifiez vos filtres ou revenez plus tard</p>
+          <div className="text-center py-20">
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <p className="text-lg font-semibold text-gray-700">Aucune mission trouvée</p>
+            <p className="text-sm text-gray-400 mt-1">Essayez de modifier vos filtres ou revenez plus tard</p>
+            {activeFilters && (
+              <button onClick={resetFilters} className="mt-4 btn-outline text-sm">
+                Réinitialiser les filtres
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {missions.map(m => <MissionCard key={m.id} mission={m} />)}
           </div>
+        )}
+
+        {/* FAB mobile - publier */}
+        {isAuthenticated && isClient && (
+          <Link
+            to="/missions/creer"
+            className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-full bg-secondary-500 text-white shadow-lg flex items-center justify-center hover:bg-secondary-600 transition-colors z-30"
+            aria-label="Publier une mission"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </Link>
         )}
       </div>
     </div>

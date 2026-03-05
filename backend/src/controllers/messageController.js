@@ -17,6 +17,16 @@ const sendMessage = async (req, res, next) => {
     const mission = await prisma.mission.findUnique({ where: { id: parseInt(missionId) } });
     if (!mission) return res.status(404).json({ message: 'Mission introuvable' });
 
+    // Seuls le client propriétaire et le prestataire assigné peuvent envoyer des messages
+    if (req.user.role !== 'ADMIN' && mission.clientId !== req.user.id) {
+      const candidatureAcceptee = await prisma.candidature.findFirst({
+        where: { missionId: parseInt(missionId), prestataireId: req.user.id, statut: 'ACCEPTEE' },
+      });
+      if (!candidatureAcceptee) {
+        return res.status(403).json({ message: 'Accès refusé : vous n\'êtes pas autorisé à envoyer des messages sur cette mission' });
+      }
+    }
+
     const message = await prisma.message.create({
       data: {
         missionId: parseInt(missionId),

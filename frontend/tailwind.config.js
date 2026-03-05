@@ -42,8 +42,29 @@ export default {
         sans: ['"Inter"', '"Segoe UI"', 'Roboto', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 2px 15px rgba(0,0,0,0.08)',
+        card:         '0 2px 15px rgba(0,0,0,0.08)',
         'card-hover': '0 8px 30px rgba(0,0,0,0.14)',
+        'glow':       '0 0 20px rgba(27,42,94,0.15)',
+        'glow-green': '0 0 20px rgba(39,174,96,0.2)',
+      },
+      animation: {
+        'float':      'float 4s ease-in-out infinite',
+        'fade-up':    'fadeUp 0.5s ease forwards',
+        'slide-down': 'slideDown 0.25s ease forwards',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%':      { transform: 'translateY(-10px)' },
+        },
+        fadeUp: {
+          from: { opacity: '0', transform: 'translateY(20px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideDown: {
+          from: { opacity: '0', transform: 'translateY(-8px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        },
       },
     },
   },
