@@ -1,6 +1,11 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Instanciation lazy pour éviter un crash si RESEND_API_KEY n'est pas encore configuré
+let _resend = null;
+const getResend = () => {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+};
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://sama-jobsite.vercel.app';
 const FROM_EMAIL   = process.env.FROM_EMAIL    || 'SamaJob <onboarding@resend.dev>';
@@ -11,7 +16,7 @@ const FROM_EMAIL   = process.env.FROM_EMAIL    || 'SamaJob <onboarding@resend.de
 const sendVerificationEmail = async ({ to, nom, token }) => {
   const link = `${FRONTEND_URL}/verify-email?token=${token}`;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM_EMAIL,
     to,
     subject: 'Vérifiez votre adresse email – SamaJob',
