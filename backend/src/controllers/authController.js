@@ -145,6 +145,7 @@ const getMe = async (req, res, next) => {
         competences: true,
         bio: true,
         photo: true,
+        documents: true,
         dateCreation: true,
       },
     });

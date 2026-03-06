@@ -12,6 +12,9 @@ const COMPETENCES_SUGGESTIONS = [
   'Rédaction web', 'SEO', 'Traduction', 'Community management', 'Comptabilité',
 ];
 
+const CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
 const Profile = () => {
   const { user, updateUser, isPrestataire } = useAuth();
   const [form, setForm] = useState({
@@ -19,10 +22,13 @@ const Profile = () => {
   });
   const [pwForm, setPwForm] = useState({ ancienMotDePasse: '', nouveauMotDePasse: '', confirm: '' });
   const [competenceInput, setCompetenceInput] = useState('');
-  const [saving, setSaving]   = useState(false);
+  const [saving, setSaving]     = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
   const [feedback, setFeedback] = useState({ type: '', text: '' });
-  const [tab, setTab] = useState('profil');
+  const [tab, setTab]           = useState('profil');
+  const [documents, setDocuments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [docNom, setDocNom]       = useState('');
 
   useEffect(() => {
     if (user) {
@@ -33,6 +39,11 @@ const Profile = () => {
         bio:        user.bio         || '',
         competences: user.competences || [],
       });
+      // Charger les documents existants
+      const docs = (user.documents || []).map(d => {
+        try { return JSON.parse(d); } catch { return { url: d, nom: 'Document' }; }
+      });
+      setDocuments(docs);
     }
   }, [user]);
 
@@ -69,6 +80,65 @@ const Profile = () => {
       showFeedback('error', err.response?.data?.message || 'Erreur');
     } finally {
       setPwSaving(false);
+    }
+  };
+
+  const handleUploadDocument = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const ACCEPTED = ['application/pdf', 'image/jpeg', 'image/png',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!ACCEPTED.includes(file.type)) {
+      return showFeedback('error', 'Format non accepté. Utilisez PDF, JPG, PNG ou DOCX.');
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return showFeedback('error', 'Fichier trop volumineux (5 Mo max).');
+    }
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      return showFeedback('error', 'Configuration Cloudinary manquante. Contactez l\'administrateur.');
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET);
+      formData.append('folder', 'samajob/documents');
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) throw new Error('Erreur lors de l\'upload');
+      const data = await res.json();
+
+      const nom = docNom.trim() || file.name.replace(/\.[^.]+$/, '').slice(0, 80);
+      const { data: saved } = await api.post('/users/documents', { url: data.secure_url, nom });
+
+      const parsed = saved.documents.map(d => {
+        try { return JSON.parse(d); } catch { return { url: d, nom: 'Document' }; }
+      });
+      setDocuments(parsed);
+      setDocNom('');
+      e.target.value = '';
+      showFeedback('success', 'Document ajouté avec succès !');
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Erreur lors de l\'upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (index) => {
+    try {
+      const { data } = await api.delete('/users/documents', { data: { index } });
+      const parsed = data.documents.map(d => {
+        try { return JSON.parse(d); } catch { return { url: d, nom: 'Document' }; }
+      });
+      setDocuments(parsed);
+      showFeedback('success', 'Document supprimé.');
+    } catch (err) {
+      showFeedback('error', err.response?.data?.message || 'Erreur');
     }
   };
 
@@ -121,6 +191,7 @@ const Profile = () => {
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1">
         {[
           { key: 'profil',    label: 'Informations' },
+          ...(isPrestataire ? [{ key: 'documents', label: 'Documents' }] : []),
           { key: 'securite',  label: 'Sécurité' },
         ].map(t => (
           <button
@@ -206,6 +277,92 @@ const Profile = () => {
               {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* DOCUMENTS */}
+      {tab === 'documents' && isPrestataire && (
+        <div className="card space-y-6">
+          <div>
+            <h3 className="font-bold text-gray-900 mb-1">Mes documents</h3>
+            <p className="text-xs text-gray-500">CV, portfolio, diplômes — PDF, JPG, PNG, DOCX (5 Mo max)</p>
+          </div>
+
+          {/* Zone d'upload */}
+          <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 space-y-3">
+            <div>
+              <label className="label">Nom du document <span className="text-gray-400">(optionnel)</span></label>
+              <input
+                type="text" value={docNom}
+                onChange={e => setDocNom(e.target.value)}
+                className="input text-sm" placeholder="ex: CV 2026, Portfolio design..."
+                maxLength={80}
+              />
+            </div>
+            <div>
+              <label className={`flex items-center justify-center gap-2 cursor-pointer w-full py-3 rounded-lg border border-primary-300 text-primary-600 text-sm font-medium hover:bg-primary-50 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {uploading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Upload en cours...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Choisir un fichier
+                  </>
+                )}
+                <input
+                  type="file" className="hidden" disabled={uploading}
+                  accept=".pdf,.jpg,.jpeg,.png,.docx"
+                  onChange={handleUploadDocument}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Liste des documents */}
+          {documents.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">Aucun document déposé</p>
+          ) : (
+            <ul className="space-y-2">
+              {documents.map((doc, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{doc.nom}</p>
+                      <a
+                        href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-primary-600 hover:underline"
+                      >Voir le fichier →</a>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDocument(i)}
+                    className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                    title="Supprimer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="text-xs text-gray-400">{documents.length}/10 documents</p>
         </div>
       )}
 

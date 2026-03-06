@@ -180,10 +180,79 @@ const changePassword = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/users/documents
+ * Ajouter un document (URL Cloudinary) au profil du prestataire
+ */
+const addDocument = async (req, res, next) => {
+  try {
+    const { url, nom } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ message: 'URL du document requise' });
+    }
+    try { new URL(url); } catch {
+      return res.status(400).json({ message: 'URL invalide' });
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      return res.status(400).json({ message: 'URL doit commencer par http(s)://' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    if (user.documents.length >= 10) {
+      return res.status(400).json({ message: 'Maximum 10 documents autorisés' });
+    }
+
+    // Stocker l'objet {url, nom} encodé en JSON dans le tableau
+    const entry = JSON.stringify({ url, nom: (nom || 'Document').slice(0, 100) });
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { documents: { push: entry } },
+      select: { documents: true },
+    });
+
+    res.json({ message: 'Document ajouté', documents: updated.documents });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/users/documents
+ * Supprimer un document du profil (par index)
+ */
+const removeDocument = async (req, res, next) => {
+  try {
+    const index = parseInt(req.body.index, 10);
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    if (isNaN(index) || index < 0 || index >= user.documents.length) {
+      return res.status(400).json({ message: 'Index invalide' });
+    }
+
+    const newDocs = user.documents.filter((_, i) => i !== index);
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { documents: newDocs },
+      select: { documents: true },
+    });
+
+    res.json({ message: 'Document supprimé', documents: updated.documents });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getPrestataires,
   getUserById,
   updateProfile,
   changePassword,
   updateProfileValidation,
+  addDocument,
+  removeDocument,
 };

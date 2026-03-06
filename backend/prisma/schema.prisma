@@ -52,6 +52,7 @@ model User {
   competences  String[]     @default([])
   bio          String?
   photo        String?
+  documents    String[]     @default([])
   dateCreation DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
