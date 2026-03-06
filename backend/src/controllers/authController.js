@@ -3,7 +3,6 @@ const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
 const prisma  = require('../db');
 const { body } = require('express-validator');
-const { sendVerificationEmail } = require('../utils/email');
 
 // ─── Validations ──────────────────────────────────────────────────────────────
 
@@ -68,9 +67,6 @@ const register = async (req, res, next) => {
         dateCreation: true,
       },
     });
-
-    // Envoyer l'email de vérification (sans bloquer la réponse si ça échoue)
-    sendVerificationEmail({ to: email, nom, token: tokenVerification }).catch(() => {});
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
@@ -203,27 +199,10 @@ const verifyEmail = async (req, res, next) => {
 
 /**
  * POST /api/auth/resend-verification
- * Renvoyer l'email de vérification
+ * Renvoyer l'email de vérification (désactivé — RESEND_API_KEY non configuré)
  */
-const resendVerification = async (req, res, next) => {
-  try {
-    if (!req.user) return res.status(401).json({ message: 'Non authentifié' });
-
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
-    if (user.emailVerifie) return res.json({ message: 'Email déjà vérifié' });
-
-    const token = crypto.randomBytes(32).toString('hex');
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { tokenVerification: token },
-    });
-
-    await sendVerificationEmail({ to: user.email, nom: user.nom, token });
-    res.json({ message: 'Email de vérification renvoyé' });
-  } catch (error) {
-    next(error);
-  }
+const resendVerification = async (req, res) => {
+  res.status(503).json({ message: 'Envoi d\'email temporairement désactivé.' });
 };
 
 module.exports = { register, login, getMe, verifyEmail, resendVerification, registerValidation, loginValidation };
