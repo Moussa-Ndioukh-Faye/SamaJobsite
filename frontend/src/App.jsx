@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingSpinner from './components/LoadingSpinner';
+import EmailVerifBanner from './components/EmailVerifBanner';
 
 // Pages publiques
 import Home              from './pages/Home';
@@ -16,6 +17,7 @@ import CommentCaMarche   from './pages/CommentCaMarche';
 import Confidentialite   from './pages/Confidentialite';
 import MentionsLegales   from './pages/MentionsLegales';
 import CGU               from './pages/CGU';
+import VerifyEmail        from './pages/VerifyEmail';
 
 // Pages protégées
 import DashboardClient       from './pages/DashboardClient';
@@ -33,6 +35,7 @@ const App = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+      <EmailVerifBanner />
       <main className="flex-1">
         <Routes>
           {/* Public */}
@@ -44,6 +47,7 @@ const App = () => {
           <Route path="/confidentialite"  element={<Confidentialite />} />
           <Route path="/mentions-legales" element={<MentionsLegales />} />
           <Route path="/cgu"              element={<CGU />} />
+          <Route path="/verify-email"     element={<VerifyEmail />} />
 
           {/* Auth – redirige si déjà connecté */}
           <Route

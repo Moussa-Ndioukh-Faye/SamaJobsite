@@ -1,7 +1,9 @@
-const bcrypt = require('bcrypt');
-const jwt    = require('jsonwebtoken');
-const prisma = require('../db');
+const bcrypt  = require('bcrypt');
+const jwt     = require('jsonwebtoken');
+const crypto  = require('crypto');
+const prisma  = require('../db');
 const { body } = require('express-validator');
+const { sendVerificationEmail } = require('../utils/email');
 
 // ─── Validations ──────────────────────────────────────────────────────────────
 
@@ -44,6 +46,8 @@ const register = async (req, res, next) => {
     // Statut initial : CLIENT est VALIDE directement, PRESTATAIRE attend validation
     const statut = role === 'CLIENT' ? 'VALIDE' : 'EN_ATTENTE';
 
+    const tokenVerification = crypto.randomBytes(32).toString('hex');
+
     const user = await prisma.user.create({
       data: {
         nom,
@@ -52,6 +56,7 @@ const register = async (req, res, next) => {
         role,
         statut,
         telephone,
+        tokenVerification,
       },
       select: {
         id: true,
@@ -59,9 +64,13 @@ const register = async (req, res, next) => {
         email: true,
         role: true,
         statut: true,
+        emailVerifie: true,
         dateCreation: true,
       },
     });
+
+    // Envoyer l'email de vérification (sans bloquer la réponse si ça échoue)
+    sendVerificationEmail({ to: email, nom, token: tokenVerification }).catch(() => {});
 
     const token = jwt.sign(
       { id: user.id, role: user.role },
@@ -71,8 +80,8 @@ const register = async (req, res, next) => {
 
     res.status(201).json({
       message: role === 'PRESTATAIRE'
-        ? 'Compte créé. En attente de validation par l\'administrateur.'
-        : 'Compte créé avec succès.',
+        ? 'Compte créé. En attente de validation. Vérifiez votre email.'
+        : 'Compte créé ! Vérifiez votre email pour activer votre compte.',
       token,
       user,
     });
@@ -146,6 +155,7 @@ const getMe = async (req, res, next) => {
         bio: true,
         photo: true,
         documents: true,
+        emailVerifie: true,
         dateCreation: true,
       },
     });
@@ -156,4 +166,64 @@ const getMe = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, registerValidation, loginValidation };
+/**
+ * GET /api/auth/verify-email?token=xxx
+ * Vérifier l'email via le lien reçu
+ */
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ message: 'Token manquant' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { tokenVerification: token },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Lien invalide ou déjà utilisé' });
+    }
+
+    if (user.emailVerifie) {
+      return res.json({ message: 'Email déjà vérifié' });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifie: true, tokenVerification: null },
+    });
+
+    res.json({ message: 'Email vérifié avec succès !' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/resend-verification
+ * Renvoyer l'email de vérification
+ */
+const resendVerification = async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: 'Non authentifié' });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+    if (user.emailVerifie) return res.json({ message: 'Email déjà vérifié' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { tokenVerification: token },
+    });
+
+    await sendVerificationEmail({ to: user.email, nom: user.nom, token });
+    res.json({ message: 'Email de vérification renvoyé' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, getMe, verifyEmail, resendVerification, registerValidation, loginValidation };
