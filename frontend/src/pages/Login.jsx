@@ -109,18 +109,6 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Compte démo */}
-          <div className="mt-5 p-3 rounded-xl bg-gray-50 border border-gray-100">
-            <p className="text-xs text-gray-500 font-medium mb-1">Compte Admin de démonstration :</p>
-            <p className="text-xs text-gray-600">📧 admin@samajob.sn &nbsp;·&nbsp; 🔑 Admin1234</p>
-            <button
-              type="button"
-              onClick={() => setForm({ email: 'admin@samajob.sn', motDePasse: 'Admin1234' })}
-              className="mt-1.5 text-xs text-primary-600 hover:underline"
-            >
-              Remplir automatiquement →
-            </button>
-          </div>
 
           <p className="text-center text-sm text-gray-500 mt-5">
             Pas encore de compte ?{' '}
