@@ -13,6 +13,9 @@ import Missions          from './pages/Missions';
 import MissionDetail     from './pages/MissionDetail';
 import Prestataires      from './pages/Prestataires';
 import CommentCaMarche   from './pages/CommentCaMarche';
+import Confidentialite   from './pages/Confidentialite';
+import MentionsLegales   from './pages/MentionsLegales';
+import CGU               from './pages/CGU';
 
 // Pages protégées
 import DashboardClient       from './pages/DashboardClient';
@@ -38,6 +41,9 @@ const App = () => {
           <Route path="/missions/:id"      element={<MissionDetail />} />
           <Route path="/prestataires"      element={<Prestataires />} />
           <Route path="/comment-ca-marche" element={<CommentCaMarche />} />
+          <Route path="/confidentialite"  element={<Confidentialite />} />
+          <Route path="/mentions-legales" element={<MentionsLegales />} />
+          <Route path="/cgu"              element={<CGU />} />
 
           {/* Auth – redirige si déjà connecté */}
           <Route
