@@ -33,13 +33,8 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 to-secondary-500 flex items-center justify-center shadow-sm">
-              <span className="text-white font-extrabold text-lg">S</span>
-            </div>
-            <span className="font-extrabold text-xl tracking-tight">
-              <span className="text-primary-600">Sama</span><span className="text-secondary-500">Job</span>
-            </span>
+          <Link to="/" className="flex items-center gap-1 group">
+            <img src="/logo.png" alt="SamaJob" className="h-12 w-auto" />
           </Link>
 
           {/* Nav liens desktop */}
