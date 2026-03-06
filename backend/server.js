@@ -75,23 +75,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'SamaJob API opérationnelle' });
 });
 
-// ─── Seed admin (usage unique) ────────────────────────────────────────────────
-app.get('/api/seed-admin-x7k2', async (req, res) => {
-  try {
-    const bcrypt = require('bcrypt');
-    const prisma = require('./src/db');
-    const hashed = await bcrypt.hash('Admin1234', 12);
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@samajob.sn' },
-      update: {},
-      create: { nom: 'Administrateur SamaJob', email: 'admin@samajob.sn', motDePasse: hashed, role: 'ADMIN', statut: 'VALIDE' },
-    });
-    res.json({ ok: true, id: admin.id, email: admin.email });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ─── Route 404 ────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ message: 'Route introuvable.' });
